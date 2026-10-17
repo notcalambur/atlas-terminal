@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "echo 'no build'",
+  "outputDirectory": "frontend",
+  "rewrites": [
+    { "source": "/api/health", "destination": "api/health.py" },
+    { "source": "/api/mkts", "destination": "api/mkts.py" },
+    { "source": "/api/quote/(.*)", "destination": "api/quote.py?ticker=$1" },
+    { "source": "/api/fa/(.*)", "destination": "api/fa.py?ticker=$1" },
+    { "source": "/api/risk", "destination": "api/risk.py" },
+    { "source": "/api/news/(.*)", "destination": "api/news.py?ticker=$1" },
+    { "source": "/api/eco", "destination": "api/eco.py" }
+  ],
+  "crons": []
+}

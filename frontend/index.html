@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATLAS TERMINAL</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">ATLAS<span class="dim">::</span>TERMINAL</div>
+  <form id="cmd-form" class="cmd">
+    <span class="prompt">&gt;</span>
+    <input id="cmd" type="text" autocomplete="off" spellcheck="false"
+           placeholder='type "AAPL", "AAPL FA", "ECO", "MKTS" — Enter to go'>
+  </form>
+  <div id="status" class="status">ready</div>
+</header>
+
+<nav id="tabs" class="tabs">
+  <button class="tab active" data-tab="mkts"  data-key="F1"><span class="fk">F1</span>MKTS</button>
+  <button class="tab"        data-tab="quote" data-key="F2"><span class="fk">F2</span>QUOTE</button>
+  <button class="tab"        data-tab="fa"    data-key="F3"><span class="fk">F3</span>FA</button>
+  <button class="tab"        data-tab="risk"  data-key="F4"><span class="fk">F4</span>RISK</button>
+  <button class="tab"        data-tab="news"  data-key="F5"><span class="fk">F5</span>NEWS</button>
+  <button class="tab"        data-tab="eco"   data-key="F6"><span class="fk">F6</span>ECO</button>
+</nav>
+
+<main class="grid">
+  <section id="p-mkts"  class="panel"></section>
+  <section id="p-quote" class="panel" hidden></section>
+  <section id="p-fa"    class="panel" hidden></section>
+  <section id="p-risk"  class="panel" hidden></section>
+  <section id="p-news"  class="panel" hidden></section>
+  <section id="p-eco"   class="panel" hidden></section>
+</main>
+
+<div id="hint" class="hint">F1 MKTS · F2 QUOTE · F3 FA · F4 RISK · F5 NEWS · F6 ECO · e.g. AAPL, AAPL FA, MKTS, ECO</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -27,9 +27,12 @@ def fetch_series(series_id: str, lookback_days: int = 365 * 10) -> list[tuple[dt
     text = r.text
     out: list[tuple[dt.date, float]] = []
     reader = csv.DictReader(io.StringIO(text))
+    # FRED renamed its date column from "DATE" to "observation_date" in late 2025.
+    # Accept either so we work across schema versions.
+    date_key = "observation_date" if "observation_date" in (reader.fieldnames or []) else "DATE"
     for row in reader:
         try:
-            d = dt.date.fromisoformat(row["DATE"])
+            d = dt.date.fromisoformat(row[date_key])
             v = float(row[series_id])
         except (KeyError, ValueError):
             continue

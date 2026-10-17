@@ -23,7 +23,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
-from . import config, db, fetcher, fred, news, risk as risk_mod
+from . import config, db, fred, risk as risk_mod
 
 
 app = FastAPI(title="Atlas Terminal API", version="0.1.0")

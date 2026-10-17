@@ -4,11 +4,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-# Load .env from project root if present (scheduler / local dev).
-_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(_ROOT / ".env", override=False)
+try:
+    from dotenv import load_dotenv
+    # Load .env from project root if present (scheduler / local dev only).
+    _ROOT = Path(__file__).resolve().parent.parent
+    load_dotenv(_ROOT / ".env", override=False)
+except ImportError:
+    # Vercel serverless / production: env vars come from os.environ directly.
+    # dotenv is a dev-only convenience; missing it must not crash the API.
+    pass
 
 DATABASE_URL: str = os.environ.get(
     "DATABASE_URL",

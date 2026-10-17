@@ -243,13 +243,12 @@ ON CONFLICT (ticker, accession_no) DO UPDATE SET
 """
 
 
-def upsert_fundamentals(rows: list[dict]) -> int:
+def upsert_fundamentals(ticker: str, rows: list[dict]) -> int:
     if not rows:
         return 0
-    payload = [{k: r.get(k) for k in (
-        "ticker", "period_end", "form", "revenue", "net_income",
-        "diluted_eps", "gross_margin", "net_margin",
-    )} for r in rows]
+    cols = ("ticker", "period_end", "form", "revenue", "net_income",
+            "diluted_eps", "gross_margin", "net_margin")
+    payload = [{k: (r.get(k) if k != "ticker" else ticker) for k in cols} for r in rows]
     for p in payload:
         execute(_FUND_UPSERT, p)
     return len(payload)
@@ -276,7 +275,7 @@ def run_full_refresh(tickers: Iterable[str]) -> dict:
             if "error" in r:
                 errors.append(f"{t}:{r['error']}")
             elif r["quarters"]:
-                fund_rows += upsert_fundamentals(r["quarters"])
+                fund_rows += upsert_fundamentals(t, r["quarters"])
         except Exception as e:  # pragma: no cover
             errors.append(f"{t}:fund:{e!s}")
         try:

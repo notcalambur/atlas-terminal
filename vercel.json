@@ -2,7 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "echo 'no build'",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api.py" },
-    { "source": "/(.*)", "destination": "/frontend/$1" }
+    { "source": "/api/(.*)", "destination": "/api.py" }
   ]
 }

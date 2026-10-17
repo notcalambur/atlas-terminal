@@ -1,0 +1,24 @@
+.git
+.gitignore
+.venv
+venv
+node_modules
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.cache
+.DS_Store
+*.log
+.env
+.env.local
+reports/
+reports-tmp/
+storage/logs/
+tests/
+# Vercel-only files (not needed in the Dokploy image).
+.vercel
+api_requirements.txt
+pyproject.toml
+api.py
+vercel.json

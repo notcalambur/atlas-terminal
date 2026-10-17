@@ -122,22 +122,25 @@ def _rows_from(node: dict) -> list[dict]:
 
 
 def _pick_revenue(us_gaap: dict) -> list[dict]:
-    series = _concept_series(us_gaap, *_REVENUE_KEYS)
-    if series:
-        return series
-    # Fallback: scan concepts grouped by preferred prefix; within a group
-    # pick the most-reported 10-K + 10-Q concept so we cover annual + quarterly.
-    for prefix in _REVENUE_FALLBACK_PREFIXES:
-        candidates = [(k, sum(1 for p in next(iter(v["units"].values()))
-                              if p.get("form") in ("10-K", "10-Q")))
-                      for k, v in us_gaap.items() if k.startswith(prefix)]
-        if candidates:
-            best_key, _ = max(candidates, key=lambda kv: kv[1])
-            return _rows_from(us_gaap[best_key])
-    return []
+    # Pick the revenue-flavoured concept whose most-recent 10-K/10-Q period is
+    # the latest — that's the one the filer is actually reporting now (many
+    # keep their old concept around for years of history).
+    best = None  # (last_end, node)
+    for k, v in us_gaap.items():
+        if not any(k == p or k.startswith(p)
+                   for p in (*_REVENUE_KEYS, *_REVENUE_FALLBACK_PREFIXES)):
+            continue
+        units = next(iter(v["units"].values()))
+        recent_ends = [p["end"] for p in units if p.get("form") in ("10-K", "10-Q")]
+        if not recent_ends:
+            continue
+        last = max(recent_ends)
+        if best is None or last > best[0]:
+            best = (last, v)
+    return _rows_from(best[1]) if best else []
 
 
-def _build_quarters(ticker: str, cik: str, us_gaap: dict) -> list[dict]:
+def _build_quarters(us_gaap: dict) -> list[dict]:
     rev = _pick_revenue(us_gaap)
     ni = _concept_series(us_gaap, "NetIncomeLoss")
     eps = _concept_series(us_gaap, *_EPS_KEYS)
@@ -153,17 +156,12 @@ def _build_quarters(ticker: str, cik: str, us_gaap: dict) -> list[dict]:
             })
             slot[key] = float(p["val"])
     q = sorted(by_key.values(), key=lambda r: r["period_end"], reverse=True)[:8]
-    # Most-recent first per the brief; caller can reverse if it wants oldest-first.
     for row in q:
         rev_v = row.get("revenue")
-        gp_v = row.get("gross_profit")
+        gp_v = row.pop("gross_profit", None)  # schema stores the ratio, not raw
         ni_v = row.get("net_income")
         row["gross_margin"] = (gp_v / rev_v) if (rev_v and gp_v is not None) else None
         row["net_margin"] = (ni_v / rev_v) if (rev_v and ni_v is not None) else None
-        # Drop the raw gross_profit the schema doesn't store.
-        row.pop("gross_profit", None)
-        row["ticker"] = ticker
-        row["cik"] = cik
     return q
 
 
@@ -181,7 +179,7 @@ def fetch_fundamentals(ticker: str) -> dict:
     if not facts or "facts" not in facts:
         return {"ticker": ticker, "error": "no SEC data", "fetched_at": fetched_at}
     us_gaap = facts["facts"].get("us-gaap", {})
-    quarters = _build_quarters(ticker, cik, us_gaap)
+    quarters = _build_quarters(us_gaap)
     return {"ticker": ticker, "cik": cik, "quarters": quarters, "fetched_at": fetched_at}
 
 
@@ -246,7 +244,6 @@ ON CONFLICT (ticker, accession_no) DO UPDATE SET
 
 
 def upsert_fundamentals(rows: list[dict]) -> int:
-    """rows like fetch_fundamentals()['quarters'] minus cik/fetched_at."""
     if not rows:
         return 0
     payload = [{k: r.get(k) for k in (

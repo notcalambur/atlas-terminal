@@ -1,4 +1,10 @@
-"""yfinance fetcher. Reads + writes into Postgres. Used by scheduler only."""
+"""yfinance fetcher. Reads + writes into Postgres. Used by scheduler only.
+
+Compatible with yfinance >= 1.0. For a single ticker the columns are flat
+(Open/High/Low/Close/Adj Close/Volume). For multiple tickers they come back
+as a MultiIndex (Ticker, Field). Both shapes are normalised into a single
+long-form DataFrame here.
+"""
 from __future__ import annotations
 
 import datetime as dt
@@ -8,14 +14,7 @@ import pandas as pd
 import yfinance as yf
 
 from .config import TICKERS
-from .db import execute
-
-
-def _norm(s: str) -> str:
-    """yfinance sometimes returns columns with MultiIndex tuples; flatten."""
-    if isinstance(s, tuple):
-        return s[0]
-    return s
+from .db import execute, get_connection
 
 
 def fetch_history(tickers: Iterable[str], period: str = "5y") -> pd.DataFrame:
@@ -27,34 +26,59 @@ def fetch_history(tickers: Iterable[str], period: str = "5y") -> pd.DataFrame:
         interval="1d",
         auto_adjust=False,
         progress=False,
-        group_by="column",
     )
-    # When `tickers` has length > 1, columns are MultiIndex (Field, Ticker).
-    if isinstance(raw.columns, pd.MultiIndex):
-        raw.columns = [_norm(c) for c in raw.columns.get_level_values(0)], raw.columns.get_level_values(1)
+    if raw.empty:
+        return pd.DataFrame(columns=[
+            "ticker", "ts", "open", "high", "low", "close", "adj_close", "volume"
+        ])
+
+    multi = isinstance(raw.columns, pd.MultiIndex)
     out = []
     for t in tickers:
-        if isinstance(raw.columns, pd.MultiIndex):
-            sub = raw.xs(t, axis=1, level=1)
+        if multi:
+            try:
+                sub = raw.xs(t, axis=1, level=1)
+            except KeyError:
+                continue
         else:
-            sub = raw.copy()
-        sub = sub.rename_axis("ts").reset_index()
-        for _, row in sub.iterrows():
-            if pd.isna(row["Close"]):
+            sub = raw if t == tickers[0] else raw.iloc[0:0]
+        for idx, row in sub.iterrows():
+            ts = idx.date() if hasattr(idx, "date") else idx
+            try:
+                close = float(row["Close"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if pd.isna(close):
                 continue
             out.append((
                 t,
-                row["ts"].date() if hasattr(row["ts"], "date") else row["ts"],
-                float(row["Open"]) if not pd.isna(row["Open"]) else None,
-                float(row["High"]) if not pd.isna(row["High"]) else None,
-                float(row["Low"]) if not pd.isna(row["Low"]) else None,
-                float(row["Close"]),
-                float(row["Adj Close"]),
-                int(row["Volume"]) if not pd.isna(row["Volume"]) else 0,
+                ts,
+                _safe_float(row.get("Open")),
+                _safe_float(row.get("High")),
+                _safe_float(row.get("Low")),
+                close,
+                _safe_float(row.get("Adj Close"), default=close),
+                _safe_int(row.get("Volume")),
             ))
     return pd.DataFrame(out, columns=[
         "ticker", "ts", "open", "high", "low", "close", "adj_close", "volume"
     ])
+
+
+def _safe_float(v, default=None):
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return default
+    return f if not pd.isna(f) else default
+
+
+def _safe_int(v, default=0):
+    try:
+        i = int(v)
+    except (TypeError, ValueError):
+        return default
+    return i if not pd.isna(i) else default
 
 
 def upsert_prices(rows: pd.DataFrame) -> int:
@@ -73,10 +97,7 @@ def upsert_prices(rows: pd.DataFrame) -> int:
             fetched_at = now()
     """
     payload = list(rows.itertuples(index=False, name=None))
-    with __import__("psycopg").connect(__import__("os").environ.get(
-        "DATABASE_URL",
-        "postgresql://jesse_user:jesse_password@dokploy-postgres:5432/atlas"
-    )) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.executemany(sql, payload)
         conn.commit()
@@ -125,6 +146,7 @@ def upsert_quote(q: dict) -> None:
 
 def run_full_refresh(tickers: Iterable[str] = TICKERS, period: str = "5y") -> dict:
     """End-to-end: download + upsert daily prices + every ticker quote."""
+    tickers = list(tickers)
     rows = fetch_history(tickers, period=period)
     n = upsert_prices(rows)
     quotes = 0

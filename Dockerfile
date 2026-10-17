@@ -26,4 +26,4 @@ EXPOSE 8000
 
 # Default command runs the API. The scheduler runs as a Dokploy scheduled
 # task against the same image (see scripts/run_scheduler.sh).
-CMD ["uvicorn", "atlas.api:app", "--host", "0.0.0.0", "--port", "8000"]# Test
+CMD uvicorn atlas.api:app --host 0.0.0.0 --port 8000

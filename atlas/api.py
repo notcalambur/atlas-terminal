@@ -21,6 +21,7 @@ from typing import Optional
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from mangum import Mangum
 
 from . import config, db, fred, risk as risk_mod
@@ -316,5 +317,12 @@ def eco():
     }
 
 
-# Vercel handler.
+# Vercel handler (legacy — Dokploy runs uvicorn directly now).
 handler = Mangum(app, lifespan="off")
+
+
+# ---------- frontend (served only on Dokploy; Vercel serves its own copy) -----
+import pathlib
+_FRONTEND_DIR = pathlib.Path(__file__).resolve().parent.parent / "frontend"
+if _FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
